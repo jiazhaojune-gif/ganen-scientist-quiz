@@ -122,7 +122,16 @@
 })();
 
 /* ================= 数据与状态 ================= */
-const BANK=window.QUESTION_BANK, META=window.BANK_META;
+const META=window.BANK_META;
+let BANK=[...window.QUESTION_BANK];        // 合并校情题后可能变长
+let HAS_SCHOOL=false;
+function mergeSchoolBank(){
+  if(window.MY_SCHOOL_BANK&&window.MY_SCHOOL_BANK.length){
+    BANK=[...window.QUESTION_BANK,...window.MY_SCHOOL_BANK];
+    META.school=(window.MY_SCHOOL_META&&window.MY_SCHOOL_META.name)||'我的大学';
+    HAS_SCHOOL=true;
+  }else{ META.school=null; HAS_SCHOOL=false; }
+}
 const TYPE_NAME={single:'单选题',multiple:'多选题',fill:'填空题',flash:'简答闪卡'};
 const store={
   get(){try{return JSON.parse(localStorage.getItem('wentian_v1'))||{}}catch(e){return{}}},
@@ -165,7 +174,10 @@ function renderHome(){
     <h1>问天刷题舱</h1>
     <p>${META.name}</p>
   </div>
-  <div class="rule-card">📋 <b>考核规则</b>：${META.rule}。题库含<b>普适题</b>（科学家事迹，各校通用）与<b>校情题</b>（当前内置：${META.school}，fork 后可替换为自己学校）。</div>
+  <div class="rule-card">📋 <b>考核规则</b>：${META.rule}。<br>
+    本仓库只收录<b>各校通用的普适题</b>（科学家事迹 / 两弹一星元勋 / 国家最高科学技术奖 / 航天里程碑）；
+    <b>校情题</b>自行配置 —— 把 <code>school.example.js</code> 复制成 <code>my-school.js</code>、改成自己学校的题目，刷新页面即自动合并进题库。
+    ${META.school?`<br>✅ 当前已加载校情题：<b>${META.school}</b>`:''}</div>
   <div class="stats">
     <div class="stat"><div class="num">${s.total}</div><div class="lbl">题库总量</div></div>
     <div class="stat"><div class="num">${s.done}</div><div class="lbl">已刷题数</div></div>
@@ -193,7 +205,8 @@ function applyFilter(){
   P.list=P.random?shuffle(qs):qs; P.i=0;P.answered=false;P.sel=[];P.selfChecked=false;
 }
 function chipRow(){
-  const secs=[['all','全部'],['scientist','🌌 科学家普适'],['school','🏫 校情题']];
+  const secs=[['all','全部'],['scientist','🌌 科学家普适']];
+  if(HAS_SCHOOL)secs.push(['school',`🏫 ${META.school}校情`]);
   const types=[['all','全部题型'],['single','单选'],['multiple','多选'],['fill','填空'],['flash','简答闪卡']];
   return `<div class="chips">${secs.map(([k,n])=>`<span class="chip ${P.filter.sec===k?'on':''}" onclick="setF('sec','${k}')">${n}</span>`).join('')}</div>
   <div class="chips">${types.map(([k,n])=>`<span class="chip ${P.filter.type===k?'on':''}" onclick="setF('type','${k}')">${n}</span>`).join('')}</div>`;
@@ -392,7 +405,21 @@ function renderExamResult(){
     <h3 style="margin:22px 0 10px;font-size:15px">逐题明细</h3>${rows}`;
 }
 
-render();
+/* 启动：先合并可选校情题，再渲染（详见 README「接入自己学校的校情题」） */
+window.__boot=()=>{mergeSchoolBank();render()};
+</script>
+<script>
+/* 可选校情题库：同目录下若存在 my-school.js 则加载，加载完成（或不存在而报错）后再启动 */
+(function(){
+  function boot(){ window.__boot && window.__boot(); }
+  let done=false;
+  const once=()=>{ if(done)return; done=true; boot(); };
+  const s=document.createElement('script');
+  s.src='my-school.js';
+  s.onload=once; s.onerror=once;
+  setTimeout(once,1500);                       // 兜底，防止极端情况下卡住
+  document.head.appendChild(s);
+})();
 </script>
 </body>
 </html>
